@@ -1,0 +1,48 @@
+---
+title: "Predicting with Jawbone Data"
+author: "Mike Daniel"
+date: "Friday, September 25, 2015"
+output: html_document
+---
+```{r}
+library(caret)
+library(pROC)
+library(randomForest)
+set.seed(10101)
+```
+
+
+##Loading and Exploring the Data
+
+Set the working directory and download the training data. A quick peek in Excel shows that there are some "#DIV/0!" so we want them to count as NA. There are also entire columns that only contain data when the column *new_window* is yes. While I have no idea what this means, it seems like these columns should be deleted. Also from looking at the dataset the first 7 columns do not relate to the *classe* column, these are deleted as well. 
+
+
+```{r}
+setwd("C:/Users/Michael/datasciencecoursera/machinelearning")
+if(!file.exists("./data")){dir.create("./data")}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(fileUrl,destfile="./data/training.csv")
+training <- read.csv("./data/training.csv", na.strings=c("NA", "#DIV/0!", ""))
+training <- training[, colSums(is.na(training)) == 0]
+training <- training[, 8:length(colnames(training))]
+training$classe <- as.factor(training$classe)
+```
+
+##Creating Training and Validation Subsets
+```{r}
+trainrows = createDataPartition(y = training$classe, p = 0.6, list = FALSE)
+trainingsubset <- training[trainrows,]
+validationsubset <- training[-trainrows,]
+```
+
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+model1 <- train(classe ~ ., data = trainingsubset, method = "rf", prox = TRUE, 
+               trControl = trainControl(method = "cv", number = 4, allowParallel = TRUE))
+model2 <- train(classe ~ ., data = trainingsubset, method = "rf", preProcess="pca",  prox = TRUE, 
+               trControl = trainControl(method = "cv", number = 10, allowParallel = TRUE))
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
