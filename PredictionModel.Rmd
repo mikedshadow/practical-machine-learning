@@ -1,9 +1,19 @@
 ---
-title: "Predicting with Jawbone Data"
+title: "Predicting Common Exercise Mistakes With Quantitative Data"
 author: "Mike Daniel"
 date: "Friday, September 25, 2015"
 output: html_document
 ---
+
+##Executive Summary
+
+In the paper [Qualitative Activity Recognition of Weight Lifting Exercises](http://groupware.les.inf.puc-rio.br/work.jsf?p1=11201), the authors study common exercise mistakes using quantifiable data. They studied six participants completing a dumbell curl correctly and with 4 common mistakes. These differences were listed in the data under **classe** , with the letters A, B, C, D, and E representing the correct execution, throwing the elbow forwards, only lifting the dumbell halfway, only lowering the dumbell halfway and throwing the hips out, respectively.
+
+This report will create a model with the goal of predicting based on similar test data whether the exercise was executed correctly or which of the common mistakes was committed. The model will be trained and validated on the [Training Data](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv). The predictions are then tested on the [Test Data](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv) which is a small set of 20 observations.
+
+##Loading and Preparing the Data
+
+First load some packages and set see for reproducibility.
 ```{r}
 library(caret)
 library(pROC)
@@ -12,19 +22,21 @@ set.seed(10101)
 ```
 
 
-##Loading and Exploring the Data
-
-Set the working directory and download the training data. A quick peek in Excel shows that there are some "#DIV/0!" so we want them to count as NA. There are also entire columns that only contain data when the column *new_window* is yes. While I have no idea what this means, it seems like these columns should be deleted. Also from looking at the dataset the first 7 columns do not relate to the *classe* column, these are deleted as well. 
+Next, set the working directory and download the training data. A quick peek in Excel shows that there are some "#DIV/0!" so we want them to count as NA. There are also entire columns that only contain data when the column *new_window* is yes. While I have no idea what this means, it seems like these columns should be deleted. Also from looking at the dataset the first 7 columns do not relate to the *classe* column, these are deleted as well. The same process is done to the test data.
 
 
 ```{r}
-setwd("C:/Users/Michael/datasciencecoursera/machinelearning")
+setwd("C:/Users/Michael/datasciencecoursera/machinelearning/practical-machine-learning")
 if(!file.exists("./data")){dir.create("./data")}
-fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
-download.file(fileUrl,destfile="./data/training.csv")
+download.file(url="http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",destfile="./data/training.csv")
 training <- read.csv("./data/training.csv", na.strings=c("NA", "#DIV/0!", ""))
 training <- training[, colSums(is.na(training)) == 0]
 training <- training[, 8:length(colnames(training))]
+training$classe <- as.factor(training$classe)
+download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",destfile="./data/test.csv")
+test <- read.csv("./data/test.csv", na.strings=c("NA", "#DIV/0!", ""))
+test <- test[, colSums(is.na(test)) == 0]
+test <- test[, 8:length(colnames(test))]
 training$classe <- as.factor(training$classe)
 ```
 
@@ -35,14 +47,43 @@ trainingsubset <- training[trainrows,]
 validationsubset <- training[-trainrows,]
 ```
 
+## Build the Model
 
-You can also embed plots, for example:
+Now, build the model using the Random Forest method. Since this method can sometimes overfit, I tried it with and without using PCA preprocessing. It seemed to do better out of sample without preprocessing so that model is presented here. Included in the training is 10-fold cross validation.
 
-```{r, echo=FALSE}
-model1 <- train(classe ~ ., data = trainingsubset, method = "rf", prox = TRUE, 
-               trControl = trainControl(method = "cv", number = 4, allowParallel = TRUE))
-model2 <- train(classe ~ ., data = trainingsubset, method = "rf", preProcess="pca",  prox = TRUE, 
+```{r}
+model <- train(classe ~ ., data = trainingsubset, method = "rf", prox = TRUE, 
                trControl = trainControl(method = "cv", number = 10, allowParallel = TRUE))
+model
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Next, examine how the model did in sample by looking at the confusion matrix.
+
+```{r}
+trainpredict <- predict(model, trainingsubset)
+confusionMatrix(trainpredict, trainingsubset$classe)
+```
+
+The accuracy is perfect so overfitting could be an issue. 
+
+##Out of Sample Error
+
+Now look at the predictions for the validation subset.
+
+```{r}
+validpredict <- predict(model, validationsubset)
+confusionMatrix(validpredict, validationsubset$classe)
+```
+
+The result is a an accuracy of .993 or 99.3% and a 95% confdence interval that the accuracy is between 99.1% and 99.5%. This seems excellent and is obviously smaller than the in sample accuracy as it should be.
+
+##Prediction Assignment
+
+Finally it is time to test the predictive model with the assigned test data.
+
+```{r}
+predictions <- predict(model, test)
+predictions
+```
+
+
